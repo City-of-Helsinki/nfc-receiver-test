@@ -1,0 +1,15 @@
+0. Toimii ainakin Python-versiolla 3.6.1
+
+1. Linux: Asenna ajurit osoitteesta
+https://www.hidglobal.com/drivers/29738
+Tiedostonimi ifdokccid_linux_v.4.3.2-1-d2622a7fbea0.tar.gz
+
+2. Asenna seuraavat paketit:
+
+sudo apt-get install swig
+sudo apt-get install libpcsclite-dev
+sudo apt-get install pcscd pcsc-tools
+
+3. Asenna pip install -r requirements.txt
+
+4. Käynnistä python test.py
