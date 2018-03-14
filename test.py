@@ -65,4 +65,5 @@ while True:
     if not select_application(card):
         continue
     send_client_id(card, 'a' * 50)
-    token = get_token(connection)
+    token = get_token(card)
+    del card
