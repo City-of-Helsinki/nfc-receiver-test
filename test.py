@@ -66,4 +66,6 @@ while True:
         continue
     send_client_id(card, 'a' * 50)
     token = get_token(card)
+    print("Got token")
+    print(token)
     del card
