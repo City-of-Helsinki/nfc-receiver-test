@@ -1,7 +1,24 @@
+import os
+import datetime
+import requests
+from dotenv import load_dotenv
 from smartcard.CardType import AnyCardType
 from smartcard.CardRequest import CardRequest
 from smartcard.util import toHexString
 from smartcard.CardConnection import CardConnection
+
+
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
+
+class Settings:
+    pass
+
+
+settings = Settings()
+settings.INTERFACE_DEVICE_ID = os.getenv('INTERFACE_DEVICE_ID')
+settings.INTERFACE_DEVICE_SECRET = os.getenv('INTERFACE_DEVICE_SECRET')
+settings.TUNNISTAMO_API_BASE = os.getenv('TUNNISTAMO_API_BASE', 'https://api.hel.fi/sso-test/')
 
 
 def connect_to_card():
@@ -30,13 +47,15 @@ def select_application(card):
 
 def send_client_id(card, client_id):
     client_id = bytes(client_id, encoding='ascii')
-    EXTERNAL_AUTHENTICATE = [0x00, 0x82, 0x01, 0x01, len(client_id)]
+    EXTERNAL_AUTHENTICATE = [0x00, 0x82, 0x01, 0x01, len(client_id) & 0xff]
     assert len(client_id) <= 256
     apdu = EXTERNAL_AUTHENTICATE + list(client_id)
     print("Sending EXTERNAL AUTHENTICATE: %s" % toHexString(apdu))
     response, sw1, sw2 = card.connection.transmit(apdu, CardConnection.T1_protocol)
     print("Status: %02x %02x" % (sw1, sw2))
     assert len(response) == 0
+    if sw1 != 0x90 or sw2 != 0x00:
+        raise Exception("Invalid response to EXTERNAL AUTHENTICATE: %02x %02x" % (sw1, sw2))
 
 
 def get_token(card):
@@ -57,15 +76,54 @@ def get_token(card):
         if loops > 10:
             raise Exception("Too many GET RESPONSE requests")
 
+    if sw1 != 0x90 or sw2 != 0x00:
+        raise Exception("Invalid response to INTERNAL AUTHENTICATE: %02x %02x" % (sw1, sw2))
+
     return bytes(token)
+
+
+def perform_authentication(card):
+    if not select_application(card):
+        return
+    send_client_id(card, 'a' * 19)
+    token = get_token(card)
+    print("Got token: %s" % token)
+    return
+
+
+def read_identity(token):
+    headers = {
+        'Authorization': 'Bearer %s' % token,
+        'X-Interface-Device-Secret': settings.INTERFACE_DEVICE_SECRET
+    }
+    resp = requests.get(settings.TUNNISTAMO_API_BASE + 'v1/user_identity/', headers=headers)
+    if resp.status_code != 200:
+        raise Exception("Unable to get user identities: %s" % str(resp.content, encoding='utf8'))
+    data = resp.json()
+    for identity in data:
+        print('Service %s: %s' % (identity['service'], identity['identifier']))
+
+
+if not settings.INTERFACE_DEVICE_ID or not settings.INTERFACE_DEVICE_SECRET:
+    print("INTERFACE_DEVICE_ID or INTERFACE_DEVICE_SECRET not configured; using dummy values.")
+    print("Tunnistamo API communication will not work.")
 
 
 while True:
     card = connect_to_card()
+    start = datetime.datetime.now()
     if not select_application(card):
         continue
-    send_client_id(card, 'a' * 50)
+    send_client_id(card, settings.INTERFACE_DEVICE_ID or ('a' * 16))
     token = get_token(card)
-    print("Got token")
-    print(token)
+    end = datetime.datetime.now()
     del card
+    print("Card communication took %d ms" % ((end - start).microseconds / 1000))
+
+    if not settings.INTERFACE_DEVICE_ID or not settings.INTERFACE_DEVICE_SECRET:
+        continue
+
+    start = datetime.datetime.now()
+    read_identity(token)
+    end = datetime.datetime.now()
+    print("Tunnistamo replied in %d ms" % ((end - start).microseconds / 1000))
