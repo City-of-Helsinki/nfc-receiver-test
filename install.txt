@@ -12,4 +12,9 @@ sudo apt-get install pcscd pcsc-tools
 
 3. Asenna pip install -r requirements.txt
 
-4. Käynnistä python test.py
+4. Luo .env-tiedosto ympäristömuuttujille. Tiedot saat pyytämällä.
+
+INTERFACE_DEVICE_ID=yyy
+INTERFACE_DEVICE_SECRET=xxx
+
+4. Käynnistä python perform-nfc-authentication.py
