@@ -84,11 +84,12 @@ def get_token(card):
 
 def perform_authentication(card):
     if not select_application(card):
-        return
-    send_client_id(card, 'a' * 19)
+        return False
+    send_client_id(card, settings.INTERFACE_DEVICE_ID or ('a' * 16))
     token = get_token(card)
+    token = str(token, encoding='ascii')
     print("Got token: %s" % token)
-    return
+    return token
 
 
 def read_identity(token):
@@ -112,10 +113,9 @@ if not settings.INTERFACE_DEVICE_ID or not settings.INTERFACE_DEVICE_SECRET:
 while True:
     card = connect_to_card()
     start = datetime.datetime.now()
-    if not select_application(card):
+    token = perform_authentication(card)
+    if not token:
         continue
-    send_client_id(card, settings.INTERFACE_DEVICE_ID or ('a' * 16))
-    token = get_token(card)
     end = datetime.datetime.now()
     del card
     print("Card communication took %d ms" % ((end - start).microseconds / 1000))
