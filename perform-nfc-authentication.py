@@ -101,8 +101,23 @@ def read_identity(token):
     if resp.status_code != 200:
         raise Exception("Unable to get user identities: %s" % str(resp.content, encoding='utf8'))
     data = resp.json()
+    nonce = resp.headers.get('X-Nonce', None)
     for identity in data:
         print('Service %s: %s' % (identity['service'], identity['identifier']))
+    return nonce
+
+
+def get_pin(card, nonce):
+    nonce_bytes = nonce.encode('ASCII')
+    EXTERNAL_AUTHENTICATE = [0x00, 0x82, 0x01, 0x02, len(nonce)] + list(nonce_bytes)
+    print('Sending EXTERNAL AUTHENTICATE with nonce {}'.format(nonce))
+    response, sw1, sw2 = card.connection.transmit(EXTERNAL_AUTHENTICATE, CardConnection.T1_protocol)
+    print("Status: %02x %02x" % (sw1, sw2))
+    assert len(response) > 0
+    if sw1 != 0x90 or sw2 != 0x00:
+        raise Exception("Invalid response to EXTERNAL AUTHENTICATE: %02x %02x" % (sw1, sw2))
+    print('Got PIN number {}'.format(bytes(response)))
+    return response
 
 
 if not settings.INTERFACE_DEVICE_ID or not settings.INTERFACE_DEVICE_SECRET:
@@ -117,13 +132,18 @@ while True:
     if not token:
         continue
     end = datetime.datetime.now()
-    del card
     print("Card communication took %d ms" % ((end - start).microseconds / 1000))
 
     if not settings.INTERFACE_DEVICE_ID or not settings.INTERFACE_DEVICE_SECRET:
         continue
 
     start = datetime.datetime.now()
-    read_identity(token)
+    nonce = read_identity(token)
     end = datetime.datetime.now()
     print("Tunnistamo replied in %d ms" % ((end - start).microseconds / 1000))
+
+    start = datetime.datetime.now()
+    pin = get_pin(card, nonce)
+    end = datetime.datetime.now()
+    print("Got pin code in %d ms" % ((end-start).microseconds / 1000))
+    del card
