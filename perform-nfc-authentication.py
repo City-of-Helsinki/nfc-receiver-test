@@ -131,16 +131,16 @@ while True:
     token = perform_authentication(card)
     if not token:
         continue
-    end = datetime.datetime.now()
-    print("Card communication took %d ms" % ((end - start).microseconds / 1000))
+    diff = datetime.datetime.now() - start
+    print("Card communication took %d ms" % (diff.seconds * 1000 + diff.microseconds / 1000))
 
     if not settings.INTERFACE_DEVICE_ID or not settings.INTERFACE_DEVICE_SECRET:
         continue
 
     start = datetime.datetime.now()
     nonce = read_identity(token)
-    end = datetime.datetime.now()
-    print("Tunnistamo replied in %d ms" % ((end - start).microseconds / 1000))
+    diff = datetime.datetime.now() - start
+    print("Tunnistamo replied in %d ms" % (diff.seconds * 1000 + diff.microseconds / 1000))
 
     start = datetime.datetime.now()
     pin = get_pin(card, nonce)
